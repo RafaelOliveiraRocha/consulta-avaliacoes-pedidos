@@ -1,22 +1,12 @@
 # Consulta de avaliações por pedido
 
-Projeto histórico de automação em Python para consultar pedidos de um CSV em uma interface web e preencher avaliação e status. A demonstração offline usa pedidos e respostas inteiramente fictícios para mostrar o formato e os estados de resultado.
+Consultar pedidos um a um para registrar avaliações e status exige trabalho manual repetitivo. Criado para apoiar uma rotina de delivery, este projeto automatiza as consultas por identificador e consolida os resultados em um CSV para análise.
 
-## Estrutura
+A demonstração usa uma base local inteiramente fictícia: **CSV de pedidos → consulta por identificador no JSON → tratamento da avaliação e do status → CSV consolidado**.
 
-- `consulta.py`: entrada de linha de comando, com seleção explícita de modo.
-- `processamento.py`: leitura textual de CSV, estados, simulação e exportação.
-- `automacao.py`: consulta real com Selenium e Chrome, usando configuração externa.
-- `pedidos.csv`: esquema histórico sem registros.
-- `examples/`: entrada, respostas e resultado esperado, todos simulados.
-- `config/seletores.example.json`: seletores históricos de referência; exigem adaptação.
-- `outputs/`: resultados locais, ignorados pelo Git.
+## Experimente a demonstração
 
-O fluxo consulta pedidos concluídos, extrai o texto da avaliação e reconhece cancelamentos. Não calcula uma nova avaliação, aplica limites de score ou coleta contatos. Não existe integração por API implementada. O repositório não contém arquivo de licença; não se atribui licença ao material implicitamente.
-
-## Demonstração offline
-
-Requisito: **Python 3.10 ou superior**. Não é necessário instalar dependências, configurar credenciais ou possuir navegador. Na raiz do projeto:
+Na raiz do projeto, com **Python 3.10 ou superior**:
 
 ```bash
 python3 -S -B consulta.py --simular \
@@ -24,39 +14,78 @@ python3 -S -B consulta.py --simular \
   --respostas examples/respostas-simuladas.json
 ```
 
-O comando cria um novo `outputs/simulacao-<timestamp>.csv`. Há quatro registros: um verificado com avaliação textual `4,8`, um cancelado, uma ausência explícita e uma falha técnica. A coluna `Origem` identifica todos como `Simulado`. O conteúdo deve corresponder a [examples/resultado-esperado.csv](examples/resultado-esperado.csv).
+A simulação usa apenas a biblioteca padrão e arquivos locais, sem rede, navegador ou credenciais. O comando gera `outputs/simulacao-<timestamp>.csv`, preservando a entrada, a ordem dos pedidos e os zeros iniciais dos identificadores.
 
-Para escolher o nome, acrescente `--saida outputs/minha-demonstracao.csv`. O arquivo não pode existir: escolha outro nome para repetir. A entrada nunca é sobrescrita. Sem argumentos, ou com `--help`, o programa mostra ajuda e não abre serviços.
+Prévia dos quatro registros de [resultado-esperado.csv](examples/resultado-esperado.csv), todos fictícios. O CSV completo inclui também `Pessoa` e `Detalhe`:
 
-[Entrada fictícia](examples/pedidos-sinteticos.csv) e [respostas fictícias](examples/respostas-simuladas.json) são arquivos locais. A simulação é escolhida antes de carregar Selenium; não acessa rede, navegador, teclado/mouse ou credenciais. Resposta fictícia ausente no JSON produz falha técnica, não comprova ausência do pedido.
+| Pedido | Score | Status | Origem |
+|---|---|---|---|
+| `000101` | `4,8` | verificado | Simulado |
+| `000102` | N/E | Cancelado | Simulado |
+| `000103` | N/E | Pedido não encontrado | Simulado |
+| `000104` | N/E | Falha técnica | Simulado |
 
-## Campos e resultados
+Para escolher o nome da saída, acrescente `--saida outputs/minha-demonstracao.csv`. O programa aceita somente um arquivo novo dentro de `outputs/`; para repetir, escolha outro nome. Sem argumentos, ou com `--help`, mostra a ajuda.
 
-CSV separado por vírgula, UTF-8 com ou sem BOM e aspas CSV padrão. Cabeçalhos são sensíveis a maiúsculas/minúsculas.
+## Experimente outros casos
+
+Crie cópias locais da [entrada fictícia](examples/pedidos-sinteticos.csv) e das [respostas fictícias](examples/respostas-simuladas.json):
+
+```bash
+mkdir -p outputs
+cp examples/pedidos-sinteticos.csv outputs/pedidos-experimento.csv
+cp examples/respostas-simuladas.json outputs/respostas-experimento.json
+```
+
+Edite o CSV para acrescentar ou trocar pedidos. No JSON, mantenha `"simulado": true` e a lista `respostas`; cada item relaciona o mesmo `Pedido` textual a um `Estado`. Use um dos estados abaixo. Para `verificado`, informe `Score` como texto preenchido, por exemplo `"4.8"`. Os demais estados dispensam esse campo.
+
+| Estado no JSON | Status no CSV | Significado |
+|---|---|---|
+| `verificado` | verificado | Pedido concluído com avaliação preenchida |
+| `cancelado` | Cancelado | Cancelamento indicado na resposta |
+| `ausente` | Pedido não encontrado | Ausência indicada explicitamente na resposta |
+| `erro_tecnico` | Falha técnica | Consulta sem confirmação, como erro de navegação, timeout ou resposta ambígua |
+
+Um pedido sem resposta no JSON recebe `Falha técnica`. Para representar uma ausência, use `ausente` explicitamente. Cada identificador pode aparecer uma única vez na lista de respostas; a correspondência usa o texto exato de `Pedido`.
+
+Execute com os arquivos editados:
+
+```bash
+python3 -S -B consulta.py --simular \
+  --entrada outputs/pedidos-experimento.csv \
+  --respostas outputs/respostas-experimento.json
+```
+
+## Entrada e saída
+
+O CSV usa vírgula como separador, UTF-8 com ou sem BOM e aspas CSV padrão. Os cabeçalhos são sensíveis a maiúsculas/minúsculas.
 
 | Campo | Uso |
 |---|---|
-| `Pedido` | Obrigatório e preenchido; identificador preservado como texto, incluindo zeros iniciais |
-| `Pessoa` | Opcional; campo informativo preservado, sem uso na consulta |
-| `Score` | Preenchido com o texto extraído; ponto é substituído por vírgula, sem cálculo numérico |
-| `Status` | Estado da consulta; o valor anterior não impede nova consulta |
-| `Origem` | `Simulado` ou `Consulta real` |
-| `Detalhe` | Descrição fixa do significado do estado, sem erros internos |
+| `Pedido` | Obrigatório e preenchido; preservado como texto, incluindo zeros iniciais |
+| `Pessoa` | Opcional; informação preservada, sem uso na consulta |
+| `Score` | Texto da avaliação, com ponto substituído por vírgula; `N/E` nos demais estados |
+| `Status` | Estado do processamento, conforme a tabela acima |
+| `Origem` | `Simulado` na demonstração ou `Consulta real` no modo Selenium |
+| `Detalhe` | Descrição do estado do processamento |
 
-Colunas adicionais são preservadas. O leitor rejeita cabeçalho ausente/repetido, pedidos vazios, estrutura incompatível e encoding inválido. Entrada só com cabeçalho é aceita. Não há deduplicação: cada linha é processada e respostas são relacionadas pelo texto exato de `Pedido`, sem normalização.
+Colunas adicionais são preservadas. `Score`, `Status`, `Origem` e `Detalhe` são preenchidos pelo processamento, substituindo valores anteriores dessas colunas. O CSV de saída não inclui índice adicional.
 
-| Status | Significado |
-|---|---|
-| `verificado` | Resposta de concluído e avaliação preenchida |
-| `Cancelado` | Cancelamento indicado explicitamente |
-| `Pedido não encontrado` | Mensagem de ausência indicada explicitamente |
-| `Falha técnica` | Consulta não confirmada, incluindo timeout, seletor/navegação ou resposta ambígua |
+Pedidos repetidos na entrada são processados linha a linha, sem deduplicação. Cabeçalhos ausentes ou repetidos, pedidos vazios e estruturas incompatíveis são rejeitados; uma entrada só com cabeçalho gera uma saída sem registros. A avaliação permanece textual: a substituição de ponto por vírgula não calcula nem normaliza uma métrica.
 
-Para os três últimos estados, `Score` recebe `N/E`; consulte `Status` para distinguir seus significados. A exportação preserva a ordem e não inclui índice adicional. Os resultados são arquivos novos dentro de `outputs/`; não há sobrescrita silenciosa.
+## Estrutura
 
-## Configuração e modo real
+- `consulta.py`: CLI e seleção explícita entre simulação e consulta real.
+- `processamento.py`: leitura de CSV, estados, simulação e exportação.
+- `automacao.py`: consulta da interface web com Selenium e Chrome.
+- `examples/`: pedidos, respostas e resultado esperado fictícios.
+- `pedidos.csv`: cabeçalho do formato original, sem registros.
+- `config/seletores.example.json`: referência para configurar os seletores da interface.
+- `outputs/`: resultados locais, ignorados pelo Git.
 
-O modo real depende de Chrome, chromedriver compatível e Selenium 4. A dependência identificada está em `requirements.txt`; suas versões não fixam um ambiente histórico reproduzível. Para preparar um ambiente separado:
+## Configuração Selenium
+
+O modo real consulta a interface web configurada, faz login e preenche avaliação/status para cada pedido. Requer **Python 3.10+, Chrome, ChromeDriver compatível e Selenium 4**, declarado em [requirements.txt](requirements.txt):
 
 ```bash
 python3 -m venv .venv
@@ -65,12 +94,12 @@ python -m pip install -r requirements.txt
 cp config/seletores.example.json config/seletores.local.json
 ```
 
-Configure no ambiente do processo `CONSULTA_URL`, `CONSULTA_DRIVER`, `CONSULTA_USUARIO`, `CONSULTA_SENHA` e `CONSULTA_SELETORES`. A URL deve ser HTTP(S), sem credenciais embutidas; o driver deve ser um arquivo de chromedriver. `CONSULTA_SELETORES` aponta para o JSON local adaptado. Valores não devem ser gravados no código ou em arquivos versionados. **Não há carregamento automático de `.env`.**
+Configure `CONSULTA_URL` (HTTP(S), sem credenciais embutidas), `CONSULTA_DRIVER` (arquivo do ChromeDriver), `CONSULTA_USUARIO`, `CONSULTA_SENHA` e `CONSULTA_SELETORES` (JSON local com os seletores adaptados). Os valores são lidos do ambiente do processo; **não há carregamento automático de `.env`**.
 
-Exemplo de configuração no Bash, substituindo os placeholders pela configuração própria. A URL ilustrativa abaixo não é um serviço funcional:
+Exemplo no Bash; substitua os placeholders. A URL é ilustrativa:
 
 ```bash
-export CONSULTA_URL='https://prestador.example.invalid/login'
+export CONSULTA_URL='https://sistema.example.invalid/login'
 export CONSULTA_DRIVER='/caminho/absoluto/para/chromedriver'
 export CONSULTA_USUARIO='substitua-pelo-usuario'
 read -r -s -p 'Senha: ' CONSULTA_SENHA
@@ -78,21 +107,14 @@ export CONSULTA_SENHA
 export CONSULTA_SELETORES="$PWD/config/seletores.local.json"
 ```
 
-Os seletores do exemplo refletem uma interface histórica específica; configurar URL e credenciais não os torna universais. Ajuste login, histórico, busca, resultado concluído, avaliação, fechamento e cancelamento à interface pretendida. `ausente` é opcional e começa vazio: preencha somente com um seletor de mensagem explícita de ausência. Sem ele, falta de resposta reconhecível produz `Falha técnica`.
+Adapte os seletores de login, histórico, busca, resultado concluído, avaliação, fechamento e cancelamento à interface usada. O seletor `ausente` é opcional e começa vazio: configure-o somente para uma mensagem explícita de ausência. Uma resposta sem estado reconhecível recebe `Falha técnica`.
 
-Com as variáveis definidas e os seletores adaptados, a seleção real é explícita:
+A consulta depende do HTML, de uma espera fixa após a busca e de timeouts. Os seletores precisam identificar o pedido consultado e distinguir resultados atualizados de elementos antigos da tela. URL e credenciais externas não tornam os seletores universais.
+
+Preencha seu CSV e escolha o modo real explicitamente:
 
 ```bash
 python consulta.py --real --entrada pedidos.csv
 ```
 
-Esse modo faz login, consulta cada pedido e produz CSV separado. Inicialização e login malsucedidos encerram sem exportação. O driver é único e seu encerramento é tentado em `finally`, inclusive após erros. O programa não imprime credenciais, URLs de acesso ou mensagens internas do Selenium.
-
-## Limitações
-
-- A demonstração valida formato e estados com respostas fictícias; não comprova funcionamento do serviço, autenticação, navegador ou seletores reais.
-- A consulta depende do HTML, de uma espera fixa após a busca e de timeouts. Não há contrato universal de resposta nem garantia de que elementos antigos da tela já foram atualizados; seletores devem identificar corretamente o pedido consultado.
-- Falha técnica não demonstra pedido ausente. Uma ausência só é registrada com indicação explícita configurada; resultados ambíguos são falhas técnicas.
-- Avaliação é texto extraído, com a substituição histórica de ponto por vírgula. Escala, significado e precisão dependem da interface; não são métricas calculadas pelo projeto.
-- Não há deduplicação, filtro por avaliação, coleta de contatos, envio de mensagens ou retomada automática após falhas. Use apenas entradas adequadas ao acesso autorizado.
-- A execução real e a compatibilidade atual das dependências/interface não são demonstradas pelo exemplo offline. Resultados simulados não representam pedidos ou desempenho operacional.
+O resultado fica em um novo `outputs/consulta-<timestamp>.csv`, com `Origem` igual a `Consulta real`. Erros de inicialização ou login encerram o processamento sem exportação. O modo usa um único driver e tenta encerrá-lo em `finally`, inclusive após erros.
