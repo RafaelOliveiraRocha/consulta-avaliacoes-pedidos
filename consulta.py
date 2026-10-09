@@ -1,100 +1,60 @@
-import pandas as pd
-from selenium import webdriver
-from selenium.webdriver.common.keys import Keys
-from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.common.by import By
-from time import sleep
-
-service = Service(executable_path="/path/to/chromedriver")
-driver = webdriver.Chrome(service=service)
+"""Entrada explícita para consulta real ou demonstração inteiramente local."""
+import argparse
+from datetime import datetime, timezone
+from pathlib import Path
+from processamento import ler_pedidos, salvar_resultados, simular
 
 
-class scorePrestador:
-    def __init__(self, username, password):
-        self.username = username
-        self.password = password
-        self.driver = webdriver.Chrome(service=service,
-                                       executable_path="/caminho/para/chromedriver")
-
-    def login(self):
-        driver = self.driver
-        driver.get("https://prestador.example.invalid/login")
-        sleep(8)
-        inputUser = driver.find_element("xpath", "//input[@name='username']")
-        inputUser.click()
-        inputUser.clear()
-        inputUser.send_keys(self.username)
-        sleep(0.5)
-        inputPassword = driver.find_element(
-            "xpath", "//input[@name='password']")
-        inputPassword.click()
-        inputPassword.clear()
-        inputPassword.send_keys(self.password)
-        sleep(1)
-        inputPassword.send_keys(Keys.ENTER)
-        sleep(10)
-
-    def records(self):
-        driver = self.driver
-        record = driver.find_element(
-            By.XPATH, "//*[@id='🚐']/div[1]/div/div[1]/ul/div[2]/li[2]/a")
-        record.click()
-        sleep(2)
-
-    def search(self):
-        driver = self.driver
-        input_pesq = driver.find_element(
-            By.XPATH, "//*[@id='🚐']/div[1]/div/div[2]/div[1]/form/div/input")
-        arq_df = pd.read_csv("pedidos.csv")
-        request = list(arq_df["Pedido"])
-        print(f'-----> Foram encontrados {len(request)} pedidos nessa lista.')
-        print(f'-----> Esses foram os pedidos {request}')
-        for c in range(len(request)):
-            input_pesq.click()
-            input_pesq.clear()
-            input_pesq.send_keys(request[c])
-            sleep(2)
-            try:
-                search_result = driver.find_element(
-                    "xpath", "//span[@title='Concluído']")
-                search_result.click()
-                sleep(4)
-                score = driver.find_element(
-                    By.XPATH, "//span[@class='style__Text-sc-1ubn63g-8 fGthnO']").text.replace(".", ",")
-                arq_df.loc[c, "Score"] = score
-                arq_df.loc[c, "Status"] = "verificado"
-                arq_df.to_csv("pedidos.csv")
-                exit_result = driver.find_element(
-                    "xpath", "//button[@class='style__Base-sc-vh04nt-0 Button__StyledButton-sc-1gmuxjw-3 iETTwv bKXePp']")
-                sleep(1)
-                exit_result.click()
-                input_pesq.send_keys(Keys.CONTROL, 'a')
-                input_pesq.send_keys(Keys.BACKSPACE)
-            except:
-                try:
-                    not_result = driver.find_element(
-                        "xpath", "//span[@title='Cancelado']")
-                    if not_result:
-                        arq_df.loc[c, "Score"] = "N/E"
-                        arq_df.loc[c, "Status"] = "Cancelado"
-                        arq_df.to_csv("pedidos.csv")
-                    sleep(2)
-                except:
-                    arq_df.loc[c, "Score"] = "N/E"
-                    arq_df.loc[c, "Status"] = "Pedido não encontrado"
-                    arq_df.to_csv("pedidos.csv")
-                finally:
-                    input_pesq.send_keys(Keys.CONTROL, 'a')
-                    input_pesq.send_keys(Keys.BACKSPACE)
-                    sleep(2)
-
-    def quit(self):
-        driver = self.driver
-        driver.quit()
+def main(argumentos=None):
+    parser = argparse.ArgumentParser(description="Consulta de avaliações por pedido.")
+    modo = parser.add_mutually_exclusive_group()
+    modo.add_argument("--simular", action="store_true", help="Usa respostas fictícias locais.")
+    modo.add_argument("--real", action="store_true", help="Acessa a interface configurada.")
+    parser.add_argument("--entrada", help="CSV UTF-8 com a coluna Pedido.")
+    parser.add_argument("--respostas", help="JSON fictício, somente na simulação.")
+    parser.add_argument("--saida", help="Novo CSV dentro de outputs/; nunca sobrescreve.")
+    args = parser.parse_args(argumentos)
+    if not args.simular and not args.real:
+        parser.print_help()
+        return 0
+    if not args.entrada:
+        parser.error("informe --entrada")
+    if args.simular and not args.respostas:
+        parser.error("informe --respostas na simulação")
+    if args.real and args.respostas:
+        parser.error("--respostas é exclusivo da simulação")
+    try:
+        campos, pedidos = ler_pedidos(args.entrada)
+        raiz = Path(__file__).resolve().parent / "outputs"
+        sufixo = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
+        nome = "simulacao" if args.simular else "consulta"
+        saida = Path(args.saida).resolve() if args.saida else raiz / f"{nome}-{sufixo}.csv"
+        if not saida.is_relative_to(raiz.resolve()):
+            raise ValueError("A saída deve ficar dentro de outputs/ deste projeto.")
+        if saida == Path(args.entrada).resolve():
+            raise ValueError("Entrada e saída devem ser arquivos diferentes.")
+        if saida.exists():
+            raise ValueError("A saída já existe; escolha outro nome. Nenhum arquivo foi sobrescrito.")
+        if args.simular:
+            resultados = simular(pedidos, args.respostas)
+        else:
+            # Ajuda e simulação não importam os módulos de automação.
+            from automacao import consultar
+            resultados = consultar(pedidos)
+        salvar_resultados(saida, campos, resultados)
+    except (ValueError, OSError) as erro:
+        detalhe = str(erro) if isinstance(erro, ValueError) else "Não foi possível ler/gravar os arquivos locais."
+        print("Erro: " + detalhe)
+        return 2
+    except ImportError:
+        print("Erro: as dependências do modo real não estão disponíveis.")
+        return 2
+    print("SIMULAÇÃO — respostas fictícias; nenhuma consulta externa." if args.simular else "Consulta concluída.")
+    for estado in ("verificado", "Cancelado", "Pedido não encontrado", "Falha técnica"):
+        print(f"{estado}: {sum(r['Status'] == estado for r in resultados)}")
+    print(f"Registros: {len(resultados)}. CSV separado: {saida}")
+    return 0
 
 
-rochaBot = scorePrestador('username', 'password')
-rochaBot.login()
-rochaBot.records()
-rochaBot.search()
-rochaBot.quit()
+if __name__ == "__main__":
+    raise SystemExit(main())

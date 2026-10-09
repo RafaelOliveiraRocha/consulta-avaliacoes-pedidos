@@ -1,0 +1,9 @@
+{
+  "simulado": true,
+  "respostas": [
+    {"Pedido": "000101", "Estado": "verificado", "Score": "4.8"},
+    {"Pedido": "000102", "Estado": "cancelado"},
+    {"Pedido": "000103", "Estado": "ausente"},
+    {"Pedido": "000104", "Estado": "erro_tecnico"}
+  ]
+}

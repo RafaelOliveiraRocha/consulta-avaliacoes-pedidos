@@ -1,0 +1,5 @@
+Pessoa,Pedido,Score,Status,Origem,Detalhe
+Pessoa Fictícia A,000101,"4,8",verificado,Simulado,Avaliação extraída da resposta.
+Pessoa Fictícia B,000102,N/E,Cancelado,Simulado,Cancelamento indicado explicitamente.
+Pessoa Fictícia C,000103,N/E,Pedido não encontrado,Simulado,Ausência indicada explicitamente.
+Pessoa Fictícia D,000104,N/E,Falha técnica,Simulado,Consulta sem confirmação; não significa ausência do pedido.

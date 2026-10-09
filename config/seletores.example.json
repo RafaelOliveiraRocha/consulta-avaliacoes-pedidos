@@ -1,0 +1,11 @@
+{
+  "usuario": "//input[@name='username']",
+  "senha": "//input[@name='password']",
+  "historico": "//*[@id='🚐']/div[1]/div/div[1]/ul/div[2]/li[2]/a",
+  "busca": "//*[@id='🚐']/div[1]/div/div[2]/div[1]/form/div/input",
+  "concluido": "//span[@title='Concluído']",
+  "avaliacao": "//span[@class='style__Text-sc-1ubn63g-8 fGthnO']",
+  "fechar": "//button[@class='style__Base-sc-vh04nt-0 Button__StyledButton-sc-1gmuxjw-3 iETTwv bKXePp']",
+  "cancelado": "//span[@title='Cancelado']",
+  "ausente": ""
+}

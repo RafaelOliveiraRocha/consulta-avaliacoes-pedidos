@@ -1,0 +1,2 @@
+# Somente para o modo real; a simulação usa a biblioteca padrão.
+selenium>=4
